@@ -1,5 +1,4 @@
 import Player from '@/actors/player'
-import { Actor } from '@/classes/actor'
 import { Scene } from '@/classes/scene'
 
 ex.Physics.acc = ex.vec(0, 800)
@@ -28,7 +27,7 @@ export default class Level1 extends Scene {
       height: 100,
       color: ex.Color.Green,
       x: 100,
-      y: 200,
+      y: 192,
       collisionType: ex.CollisionType.Fixed,
     })
     this.add(wall1)
@@ -39,7 +38,7 @@ export default class Level1 extends Scene {
       height: 100,
       color: ex.Color.Green,
       x: 240,
-      y: 200,
+      y: 192,
       collisionType: ex.CollisionType.Fixed,
     })
     this.add(wall2)

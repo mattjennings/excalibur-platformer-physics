@@ -1,18 +1,14 @@
 import * as ex from 'excalibur'
 
-export interface RaycastArgs {
-  skinWidth?: number
-  horizontalRaySpacing?: number
-  verticalRaySpacing?: number
-}
-
-export class RaycastComponent extends ex.Component {
+export class PhysicsComponent extends ex.Component {
   declare owner: ex.Actor
-  type = 'raycast'
 
+  type = 'physics'
   debug = true
+  gravity = ex.vec(0, 0)
 
   origins!: RaycastOrigins
+  collisions = new CollisionInfo()
 
   skinWidth = 1
   horizontalRayCount = 4
@@ -21,31 +17,24 @@ export class RaycastComponent extends ex.Component {
   private horizontalRaySpacing = 0
   private verticalRaySpacing = 0
 
-  constructor(
-    args: RaycastArgs = {
-      skinWidth: 1,
-      horizontalRaySpacing: 0,
-      verticalRaySpacing: 0,
-    },
-  ) {
-    super()
-
-    if (typeof args.skinWidth !== 'undefined') {
-      this.skinWidth = args.skinWidth
-    }
-
-    if (typeof args.horizontalRaySpacing !== 'undefined') {
-      this.horizontalRaySpacing = args.horizontalRaySpacing
-    }
-
-    if (typeof args.verticalRaySpacing !== 'undefined') {
-      this.verticalRaySpacing = args.verticalRaySpacing
-    }
-  }
-
   onAdd(owner: typeof this.owner): void {
+    super.onAdd?.(owner)
     this.updateRaycastOrigins()
     this.calculateRaySpacing()
+  }
+
+  move(vel: ex.Vector) {
+    this.updateRaycastOrigins()
+    this.calculateRaySpacing()
+    this.collisions.reset()
+
+    if (vel.x !== 0) {
+      this.horizontalCollisions(vel)
+    }
+
+    if (vel.y !== 0) {
+      this.verticalCollisions(vel)
+    }
   }
 
   verticalCollisions(vel: ex.Vector) {
@@ -81,7 +70,7 @@ export class RaycastComponent extends ex.Component {
         vel.y = (hit.distance - this.skinWidth) * dirY
         rayLength = hit.distance
 
-        return true
+        this.collisions[dirY === -1 ? 'top' : 'bottom'] = true
       }
     }
   }
@@ -119,7 +108,7 @@ export class RaycastComponent extends ex.Component {
         vel.x = (hit.distance - this.skinWidth) * dirX
         rayLength = hit.distance
 
-        return true
+        this.collisions[dirX === -1 ? 'left' : 'right'] = true
       }
     }
   }
@@ -184,4 +173,20 @@ class RaycastOrigins {
     public bottomLeft: ex.Vector,
     public bottomRight: ex.Vector,
   ) {}
+}
+
+class CollisionInfo {
+  constructor(
+    public top = false,
+    public bottom = false,
+    public left = false,
+    public right = false,
+  ) {}
+
+  reset() {
+    this.top = false
+    this.bottom = false
+    this.left = false
+    this.right = false
+  }
 }

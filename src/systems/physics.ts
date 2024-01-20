@@ -1,11 +1,7 @@
-import { RaycastComponent } from '@/components/physics/raycast'
+import { PhysicsComponent } from '@/components/physics/physics'
 import { AddedEntity, RemovedEntity } from 'excalibur'
 
-export class PhysicsSystem extends ex.System<
-  ex.BodyComponent | ex.TransformComponent | RaycastComponent
-> {
-  gravity = ex.vec(0, 20)
-
+export class PhysicsSystem extends ex.System {
   readonly types = ['ex.transform', 'ex.motion', 'ex.collider'] as const
   systemType = ex.SystemType.Update
   priority = -1
@@ -67,33 +63,25 @@ export class PhysicsSystem extends ex.System<
 
     const transform = entity.get(ex.TransformComponent)!
     const motion = entity.get(ex.MotionComponent)!
-    const raycast = entity.get(RaycastComponent)
-    const optionalBody = entity.get(ex.BodyComponent)
+    const body = entity.get(ex.BodyComponent)
+    const physics = entity.get(PhysicsComponent)
 
-    if (optionalBody?.sleeping) {
+    if (body?.sleeping) {
       return
     }
 
     const totalAcc = motion.acc.clone()
-    if (
-      optionalBody?.collisionType === ex.CollisionType.Active &&
-      optionalBody?.useGravity
-    ) {
-      totalAcc.addEqual(this.gravity)
+    if (body?.collisionType === ex.CollisionType.Active && physics?.gravity) {
+      totalAcc.addEqual(physics.gravity)
     }
 
     motion.vel.addEqual(totalAcc.scale(seconds))
-    if (raycast) {
-      if (motion.vel.x !== 0) {
-        raycast.horizontalCollisions(motion.vel)
-      }
 
-      if (motion.vel.y !== 0) {
-        raycast.verticalCollisions(motion.vel)
-      }
+    if (physics) {
+      physics.move(motion.vel)
     }
 
-    optionalBody?.captureOldTransform()
+    body?.captureOldTransform()
     transform.pos.addEqual(motion.vel)
   }
 }
