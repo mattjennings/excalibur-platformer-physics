@@ -5,10 +5,10 @@ import resources from 'vite-plugin-excalibur-resources'
 
 export default defineConfig({
   optimizeDeps: {
-    include: ['excalibur'],
+    // include: ['excalibur'],
   },
   resolve: {
-    dedupe: ['excalibur'],
+    // dedupe: ['excalibur'],
     alias: {
       '@': '/src',
     },
