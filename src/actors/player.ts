@@ -26,7 +26,6 @@ export default class Player extends Actor {
     )
 
     this.jumpVelocity = (2 * this.jumpHeight) / this.timeToJumpApex
-    this.physics.verticalRayCount = 8
   }
 
   onPreUpdate(engine: Engine, delta: number): void {
