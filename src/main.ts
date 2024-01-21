@@ -8,8 +8,11 @@ const game = new ex.Engine({
   width: 300,
   height: 300,
   fixedUpdateFps: 60,
+  maxFps: 60,
   displayMode: ex.DisplayMode.FitScreen,
 })
+
+ex.Physics.checkForFastBodies = true
 
 if (import.meta.env.DEV) {
   hot(game)

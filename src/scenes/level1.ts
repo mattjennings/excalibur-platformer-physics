@@ -1,12 +1,9 @@
 import Player from '@/actors/player'
 import { Scene } from '@/classes/scene'
 
-ex.Physics.acc = ex.vec(0, 800)
-ex.Physics.useArcadePhysics()
-
 export default class Level1 extends Scene {
   onInitialize() {
-    const player = new Player(100, 100)
+    const player = new Player(150, 100)
     this.add(player)
 
     const ground = new ex.Actor({
@@ -45,15 +42,16 @@ export default class Level1 extends Scene {
     })
     this.add(wall2)
 
-    const block = new ex.Actor({
-      name: 'block',
-      width: 100,
-      height: 16,
-      color: ex.Color.Blue,
+    const wall3 = new ex.Actor({
+      name: 'wall3',
+      width: 16,
+      height: 100,
+      color: ex.Color.Green,
       x: 250,
-      y: 172,
+      y: 190,
       collisionType: ex.CollisionType.Fixed,
+      rotation: Math.PI / 8,
     })
-    this.add(block)
+    this.add(wall3)
   }
 }

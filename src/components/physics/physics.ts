@@ -1,4 +1,5 @@
 import { Debug } from '@/util/debug'
+import { getVecAngle } from '@/util/math'
 import * as ex from 'excalibur'
 
 export class PhysicsComponent extends ex.Component {
@@ -76,6 +77,29 @@ export class PhysicsComponent extends ex.Component {
         this.collisions[dirY === -1 ? 'top' : 'bottom'] = true
       }
     }
+
+    if (this.collisions.climbingSlope) {
+      const dirX = Math.sign(vel.x)
+      rayLength = Math.abs(vel.x) + this.skinWidth
+
+      const rayOrigin =
+        dirX === -1 ? this.origins.bottomLeft : this.origins.bottomRight
+
+      rayOrigin.addEqual(ex.vec(0, vel.y))
+
+      const ray = new ex.Ray(rayOrigin, ex.vec(dirX, 0))
+      const [hit] = this.cast(ray, {
+        maxDistance: rayLength,
+      })
+
+      if (hit) {
+        const slopeAngle = getVecAngle(hit.normal, ex.Vector.Up)
+        if (slopeAngle !== this.collisions.slopeAngle) {
+          vel.x = (hit.distance - this.skinWidth) * dirX
+          this.collisions.slopeAngle = slopeAngle
+        }
+      }
+    }
   }
 
   horizontalCollisions(vel: ex.Vector) {
@@ -102,10 +126,7 @@ export class PhysicsComponent extends ex.Component {
       }
 
       if (hit) {
-        const getAngle = (v1: ex.Vector, v2: ex.Vector) =>
-          Math.acos(v1.dot(v2) / (v1.size * v2.size))
-
-        const slopeAngle = getAngle(hit.normal, ex.Vector.Up)
+        const slopeAngle = getVecAngle(hit.normal, ex.Vector.Up)
 
         if (i === 0 && slopeAngle <= this.maxClimbAngle) {
           let distanceToSlopeStart = 0
@@ -134,10 +155,10 @@ export class PhysicsComponent extends ex.Component {
 
   climbSlope(vel: ex.Vector, slopeAngle: number) {
     const moveDistance = Math.abs(vel.x)
-    const climbVelocityY = Math.sin(slopeAngle) * moveDistance
+    const climbVelocityY = -Math.sin(slopeAngle) * moveDistance
 
-    if (vel.y <= climbVelocityY) {
-      vel.y = -climbVelocityY
+    if (vel.y >= climbVelocityY) {
+      vel.y = climbVelocityY
       vel.x = Math.cos(slopeAngle) * moveDistance * Math.sign(vel.x)
       this.collisions.bottom = true
       this.collisions.slopeAngle = slopeAngle
@@ -190,8 +211,14 @@ export class PhysicsComponent extends ex.Component {
     })
 
     const excludedBodies = exclude?.map((e) => e.body)
-    return hits.filter(
-      ({ body }) => !excludedBodies?.includes(body) && body !== this.owner.body,
+    return (
+      hits
+        .filter(
+          ({ body }) =>
+            !excludedBodies?.includes(body) && body !== this.owner.body,
+        )
+        // sort by distance so that the closest hit is first
+        .sort((a, b) => a.distance - b.distance)
     )
   }
 }
