@@ -1,5 +1,5 @@
 import { Actor } from '@/classes/actor'
-import { Engine } from 'excalibur'
+import { Collider, CollisionContact, Engine, Side } from 'excalibur'
 
 export default class Player extends Actor {
   jumpHeight = 100 / 60 // 100px at 60fps
@@ -42,6 +42,17 @@ export default class Player extends Actor {
       this.physics.collisions.bottom
     ) {
       this.vel.y = -this.jumpVelocity
+    }
+  }
+
+  onPreCollisionResolve(
+    self: Collider,
+    other: Collider,
+    side: Side,
+    contact: CollisionContact,
+  ): void {
+    if (side === ex.Side.Left) {
+      // contact.cancel()
     }
   }
 }

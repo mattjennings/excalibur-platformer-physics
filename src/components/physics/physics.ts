@@ -1,9 +1,10 @@
+import { Actor } from '@/classes/actor'
 import { Debug } from '@/util/debug'
 import { getVecAngle } from '@/util/math'
 import * as ex from 'excalibur'
 
 export class PhysicsComponent extends ex.Component {
-  declare owner: ex.Actor
+  declare owner: Actor
 
   type = 'physics'
   debug = true
@@ -46,6 +47,11 @@ export class PhysicsComponent extends ex.Component {
     }
   }
 
+  /**
+   * Handles vertical collisions given the velocity. It will
+   * cast the necessary rays and adjust the velocity to account
+   * for the collision.
+   */
   verticalCollisions(vel: ex.Vector) {
     this.updateRaycastOrigins()
 
@@ -70,19 +76,35 @@ export class PhysicsComponent extends ex.Component {
       }
 
       if (hit) {
-        vel.y = (hit.distance - this.skinWidth) * dirY
-        rayLength = hit.distance
+        this.resolveCollision(hit, {
+          resolve: (vel) => {
+            // move up to the point of collision
+            vel.y = (hit.distance - this.skinWidth) * dirY
 
-        // handle vertical collisions while climbing slopes
-        if (this.collisions.climbingSlope) {
-          vel.x =
-            (-vel.y / Math.tan(this.collisions.slopeAngle)) * Math.sign(vel.x)
-        }
+            // handle vertical collisions while climbing slopes
+            if (this.collisions.climbingSlope) {
+              vel.x =
+                (-vel.y / Math.tan(this.collisions.slopeAngle)) *
+                Math.sign(vel.x)
+            }
 
-        this.collisions[dirY === -1 ? 'top' : 'bottom'] = true
+            return vel
+          },
+          postResolve: () => {
+            // we've resolved a collision, so shorten the ray length
+            // to only resolve the next collision if it is closer
+            rayLength = hit.distance
+
+            // update collision info
+            this.collisions[dirY === -1 ? 'top' : 'bottom'] = true
+          },
+        })
       }
     }
 
+    // check if we've encountered a new slope horizontally while climbing a slope
+    // this will handle a change in angle on an existing slope, and make sure we don't overshoot
+    // the x vel adjustment based on the current slope angle
     if (this.collisions.climbingSlope) {
       const dirX = Math.sign(vel.x)
       rayLength = Math.abs(vel.x) + this.skinWidth
@@ -100,13 +122,26 @@ export class PhysicsComponent extends ex.Component {
       if (hit) {
         const slopeAngle = getVecAngle(hit.normal, ex.Vector.Up)
         if (slopeAngle !== this.collisions.slopeAngle) {
-          vel.x = (hit.distance - this.skinWidth) * dirX
-          this.collisions.slopeAngle = slopeAngle
+          this.resolveCollision(hit, {
+            resolve: (vel) => {
+              vel.x = (hit.distance - this.skinWidth) * dirX
+
+              return vel
+            },
+            postResolve: () => {
+              this.collisions.slopeAngle = slopeAngle
+            },
+          })
         }
       }
     }
   }
 
+  /**
+   * Handles horizontal collisions given the velocity. It will
+   * cast the necessary rays and adjust the velocity to account
+   * for the collision.
+   */
   horizontalCollisions(vel: ex.Vector) {
     this.updateRaycastOrigins()
 
@@ -114,13 +149,16 @@ export class PhysicsComponent extends ex.Component {
     let rayLength = Math.abs(vel.x) + this.skinWidth
 
     for (let i = 0; i < this.horizontalRayCount; i++) {
+      // raycast from the bottom left or right
       const rayOrigin =
         dirX === -1
           ? this.origins.bottomLeft.clone()
           : this.origins.bottomRight.clone()
 
+      // adjust for which ray this is
       rayOrigin.y -= i * this.horizontalRaySpacing
 
+      // do the raycast
       const ray = new ex.Ray(rayOrigin, ex.vec(dirX, 0))
       const [hit] = this.cast(ray, {
         maxDistance: rayLength,
@@ -130,34 +168,59 @@ export class PhysicsComponent extends ex.Component {
         Debug.drawRay(this.owner, ray, rayLength)
       }
 
+      // resolve the collision
       if (hit) {
         const slopeAngle = getVecAngle(hit.normal, ex.Vector.Up)
 
+        // if this is a climbable slope, climb it.
+        // (only during the first ray since it is at the corner)
         if (i === 0 && slopeAngle <= this.maxClimbAngle) {
           let distanceToSlopeStart = 0
-          if (slopeAngle !== this.collisions.slopeAngleOld) {
-            distanceToSlopeStart = hit.distance - this.skinWidth
-            vel.x -= distanceToSlopeStart * dirX
-          }
-          this.climbSlope(vel, slopeAngle)
-          vel.x += distanceToSlopeStart * dirX
+
+          this.resolveCollision(hit, {
+            resolve: (vel) => {
+              // we've hit a new slope - subtract from velocity.x the distance to the slope
+              // so that we don't move into the slope before climbing
+              if (slopeAngle !== this.collisions.slopeAngleOld) {
+                distanceToSlopeStart = hit.distance - this.skinWidth
+                vel.x -= distanceToSlopeStart * dirX
+              }
+
+              this.climbSlope(vel, slopeAngle)
+
+              // we've finished climbing the slope for this frame, add back the distance we subtracted
+              vel.x += distanceToSlopeStart * dirX
+
+              return vel
+            },
+          })
         }
 
         if (!this.collisions.climbingSlope || slopeAngle > this.maxClimbAngle) {
-          vel.x = (hit.distance - this.skinWidth) * dirX
-          rayLength = hit.distance
+          this.resolveCollision(hit, {
+            resolve: (vel) => {
+              vel.x = (hit.distance - this.skinWidth) * dirX
 
-          // handle horizontal collisions while climbing slopes
-          if (this.collisions.climbingSlope) {
-            vel.y = -Math.tan(this.collisions.slopeAngle) * Math.abs(vel.x)
-          }
+              // handle horizontal collisions while climbing slopes
+              if (this.collisions.climbingSlope) {
+                vel.y = -Math.tan(this.collisions.slopeAngle) * Math.abs(vel.x)
+              }
 
-          this.collisions[dirX === -1 ? 'left' : 'right'] = true
+              return vel
+            },
+            postResolve: () => {
+              rayLength = hit.distance
+              this.collisions[dirX === -1 ? 'left' : 'right'] = true
+            },
+          })
         }
       }
     }
   }
 
+  /**
+   * Modifies the velocity to climb a slope.
+   */
   climbSlope(vel: ex.Vector, slopeAngle: number) {
     const moveDistance = Math.abs(vel.x)
     const climbVelocityY = -Math.sin(slopeAngle) * moveDistance
@@ -171,6 +234,9 @@ export class PhysicsComponent extends ex.Component {
     }
   }
 
+  /**
+   * Modifies the velocity to descend a slope.
+   */
   descendSlope(vel: ex.Vector) {
     const dirX = Math.sign(vel.x)
     const rayOrigin =
@@ -178,8 +244,7 @@ export class PhysicsComponent extends ex.Component {
 
     const [hit] = this.cast(new ex.Ray(rayOrigin, ex.vec(0, 1)), {
       // this.cast will search all colliders so this isn't
-      // very performant. once collision groups are setup we can configure this.cast
-      // to return after the first hit and then we can set this much higher without concern.
+      // very performant. cap it to 100px
       maxDistance: 100,
     })
 
@@ -205,6 +270,10 @@ export class PhysicsComponent extends ex.Component {
     }
   }
 
+  /**
+   * Calculates the spacing between rays based on the number of rays and the
+   * size of the collider.
+   */
   calculateRaySpacing() {
     this.horizontalRayCount = ex.clamp(this.horizontalRayCount, 2, Infinity)
     this.verticalRayCount = ex.clamp(this.verticalRayCount, 2, Infinity)
@@ -214,6 +283,9 @@ export class PhysicsComponent extends ex.Component {
     this.verticalRaySpacing = this.bounds.width / (this.verticalRayCount - 1)
   }
 
+  /**
+   * Updates the raycast origins based on the collider bounds.
+   */
   updateRaycastOrigins() {
     const bottomLeft = ex.vec(this.bounds.left, this.bounds.bottom)
     const topLeft = ex.vec(this.bounds.left, this.bounds.top)
@@ -228,6 +300,9 @@ export class PhysicsComponent extends ex.Component {
     )
   }
 
+  /**
+   * Returns the collider bounds with the skin width removed.
+   */
   get bounds() {
     return new ex.BoundingBox(
       this.owner.collider.bounds.left + this.skinWidth,
@@ -237,16 +312,19 @@ export class PhysicsComponent extends ex.Component {
     )
   }
 
-  cast = (
+  /**
+   * Casts a ray and returns all hits. It will exclude the owner
+   * and any colliders in the exclude array.
+   */
+  cast(
     ray: ex.Ray,
     {
       exclude,
       ...opts
     }: ex.RayCastOptions & { exclude?: Array<{ body: ex.BodyComponent }> },
-  ) => {
+  ) {
     const hits = this.owner.scene.physics.rayCast(ray, {
       searchAllColliders: true,
-      collisionGroup: this.owner.body.group,
       ...opts,
     })
 
@@ -259,6 +337,49 @@ export class PhysicsComponent extends ex.Component {
         )
         // sort by distance so that the closest hit is first
         .sort((a, b) => a.distance - b.distance)
+    )
+  }
+
+  /**
+   * Resolves a collision with a hit from a raycast, firing onPreCollisionResolve
+   * and onPostCollisionResolve events. Collisions can be canceled during onPreCollisionResolve.
+   */
+  resolveCollision(
+    hit: ex.RayCastHit,
+    {
+      resolve,
+      postResolve,
+    }: {
+      resolve: (newVel: ex.Vector) => ex.Vector
+      postResolve?: (newVel: ex.Vector) => void
+    },
+  ) {
+    const newVel = this.owner.vel.clone()
+    resolve(newVel)
+
+    const contact = new RaycastCollisionContact(this.owner.collider.get(), hit)
+    this.owner.onPreCollisionResolve(
+      this.owner.collider.get(),
+      hit.collider,
+      contact.side,
+      contact,
+    )
+
+    if (contact.isCanceled()) {
+      return
+    }
+
+    this.owner.vel.setTo(newVel.x, newVel.y)
+
+    if (postResolve) {
+      postResolve(newVel)
+    }
+
+    this.owner.onPostCollisionResolve(
+      this.owner.collider.get(),
+      hit.collider,
+      contact.side,
+      contact,
     )
   }
 }
@@ -294,5 +415,53 @@ class CollisionInfo {
 
     this.climbingSlope = false
     this.descendingSlope = false
+  }
+}
+
+/**
+ * Creates an ex.CollisionContact from an ex.RayCastHit. Not all data is
+ * available from an ex.RayCastHit so some data is left blank or guessed.
+ */
+export class RaycastCollisionContact extends ex.CollisionContact {
+  side: ex.Side
+
+  constructor(self: ex.Collider, hit: ex.RayCastHit) {
+    let side!: ex.Side
+
+    const bounds = self.bounds
+    const left = bounds.left
+    const right = bounds.right
+    const top = bounds.top
+    const bottom = bounds.bottom
+
+    if (hit.point.y <= top) {
+      side = ex.Side.Top
+    } else if (hit.point.y >= bottom) {
+      side = ex.Side.Bottom
+    } else if (hit.point.x <= left) {
+      side = ex.Side.Left
+    } else if (hit.point.x >= right) {
+      side = ex.Side.Right
+    }
+
+    super(
+      self,
+      hit.collider,
+      self.owner.get(ex.BodyComponent)!.vel,
+      hit.normal,
+      hit.point,
+      [],
+      [],
+      {
+        collider: hit.collider,
+        point: hit.point,
+        axis: ex.vec(
+          side === ex.Side.Left || side === ex.Side.Right ? 1 : 0,
+          side === ex.Side.Top || side === ex.Side.Bottom ? 1 : 0,
+        ),
+        separation: hit.distance,
+      },
+    )
+    this.side = side
   }
 }
