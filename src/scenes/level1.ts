@@ -27,8 +27,9 @@ export default class Level1 extends Scene {
       height: 100,
       color: ex.Color.Green,
       x: 100,
-      y: 192,
+      y: 212,
       collisionType: ex.CollisionType.Fixed,
+      rotation: -Math.PI / 4,
     })
     this.add(wall1)
 
@@ -38,9 +39,21 @@ export default class Level1 extends Scene {
       height: 100,
       color: ex.Color.Green,
       x: 240,
-      y: 192,
+      y: 212,
       collisionType: ex.CollisionType.Fixed,
+      rotation: Math.PI / 4,
     })
     this.add(wall2)
+
+    const block = new ex.Actor({
+      name: 'block',
+      width: 100,
+      height: 16,
+      color: ex.Color.Blue,
+      x: 250,
+      y: 172,
+      collisionType: ex.CollisionType.Fixed,
+    })
+    this.add(block)
   }
 }
