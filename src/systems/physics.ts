@@ -83,5 +83,10 @@ export class PhysicsSystem extends ex.System {
 
     body?.captureOldTransform()
     transform.pos.addEqual(motion.vel)
+
+    // if on the ground or ceiling, zero out y velocity
+    if (physics?.collisions.bottom || physics?.collisions.top) {
+      motion.vel.y = 0
+    }
   }
 }

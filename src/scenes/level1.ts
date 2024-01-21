@@ -42,16 +42,28 @@ export default class Level1 extends Scene {
     })
     this.add(wall2)
 
-    const wall3 = new ex.Actor({
-      name: 'wall3',
-      width: 16,
-      height: 100,
-      color: ex.Color.Green,
-      x: 250,
-      y: 190,
-      collisionType: ex.CollisionType.Fixed,
-      rotation: Math.PI / 8,
-    })
-    this.add(wall3)
+    // const wall3 = new ex.Actor({
+    //   name: 'wall3',
+    //   width: 16,
+    //   height: 100,
+    //   color: ex.Color.Green,
+    //   x: 180,
+    //   y: 190,
+    //   collisionType: ex.CollisionType.Fixed,
+    //   rotation: Math.PI / 6,
+    // })
+    // this.add(wall3)
+
+    // const wall4 = new ex.Actor({
+    //   name: 'wall4',
+    //   width: 16,
+    //   height: 100,
+    //   color: ex.Color.Green,
+    //   x: 120,
+    //   y: 190,
+    //   collisionType: ex.CollisionType.Fixed,
+    //   rotation: -Math.PI / 6,
+    // })
+    // this.add(wall4)
   }
 }

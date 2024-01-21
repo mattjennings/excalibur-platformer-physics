@@ -10,6 +10,7 @@ export class PhysicsComponent extends ex.Component {
   gravity = ex.vec(0, 0)
 
   maxClimbAngle = ex.toRadians(80)
+  maxDescendAngle = ex.toRadians(80)
 
   origins!: RaycastOrigins
   collisions = new CollisionInfo()
@@ -31,6 +32,10 @@ export class PhysicsComponent extends ex.Component {
     this.updateRaycastOrigins()
     this.calculateRaySpacing()
     this.collisions.reset()
+
+    if (vel.y > 0) {
+      this.descendSlope(vel)
+    }
 
     if (vel.x !== 0) {
       this.horizontalCollisions(vel)
@@ -162,6 +167,41 @@ export class PhysicsComponent extends ex.Component {
       vel.x = Math.cos(slopeAngle) * moveDistance * Math.sign(vel.x)
       this.collisions.bottom = true
       this.collisions.slopeAngle = slopeAngle
+      this.collisions.climbingSlope = true
+    }
+  }
+
+  descendSlope(vel: ex.Vector) {
+    const dirX = Math.sign(vel.x)
+    const rayOrigin =
+      dirX === -1 ? this.origins.bottomRight : this.origins.bottomLeft
+
+    const [hit] = this.cast(new ex.Ray(rayOrigin, ex.vec(0, 1)), {
+      // this.cast will search all colliders so this isn't
+      // very performant. once collision groups are setup we can configure this.cast
+      // to return after the first hit and then we can set this much higher without concern.
+      maxDistance: 100,
+    })
+
+    if (hit) {
+      const slopeAngle = getVecAngle(hit.normal, ex.Vector.Up)
+      if (slopeAngle !== 0 && slopeAngle <= this.maxDescendAngle) {
+        if (Math.sign(hit.normal.x) === dirX) {
+          if (
+            hit.distance - this.skinWidth <=
+            Math.tan(slopeAngle) * Math.abs(vel.x)
+          ) {
+            const moveDistance = Math.abs(vel.x)
+            const descendVelocityY = Math.sin(slopeAngle) * moveDistance
+            vel.x = Math.cos(slopeAngle) * moveDistance * Math.sign(vel.x)
+            vel.y += descendVelocityY
+
+            this.collisions.slopeAngle = slopeAngle
+            this.collisions.descendingSlope = true
+            this.collisions.bottom = true
+          }
+        }
+      }
     }
   }
 
@@ -240,6 +280,8 @@ class CollisionInfo {
 
   slopeAngle = 0
   slopeAngleOld = 0
+  climbingSlope = false
+  descendingSlope = false
 
   reset() {
     this.top = false
@@ -249,9 +291,8 @@ class CollisionInfo {
 
     this.slopeAngleOld = this.slopeAngle
     this.slopeAngle = 0
-  }
 
-  get climbingSlope() {
-    return this.slopeAngle !== 0
+    this.climbingSlope = false
+    this.descendingSlope = false
   }
 }
